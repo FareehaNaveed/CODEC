@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CODEC — Image Cryptography System</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #040709;
+  --surface:  #080d18;
+  --card:     #0a1020;
+  --border:   #111d35;
+  --border2:  #1a2d50;
+  --cyan:     #00e5ff;
+  --cyan-dim: rgba(0,229,255,.12);
+  --orange:   #ff6200;
+  --ora-dim:  rgba(255,98,0,.12);
+  --green:    #00ff88;
+  --grn-dim:  rgba(0,255,136,.12);
+  --red:      #ff2d55;
+  --yellow:   #ffd60a;
+  --text:     #b8cce0;
+  --muted:    #3d5570;
+  --mono:     'Share Tech Mono', monospace;
+  --sans:     'Rajdhani', sans-serif;
+  --head:     'Orbitron', monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::after {
+  content:'';
+  position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+}
+
+/* Grid bg */
+body::before {
+  content:'';
+  position:fixed;inset:0;z-index:-1;
+  background-image:
+    linear-gradient(rgba(0,229,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,.018) 1px, transparent 1px);
+  background-size:60px 60px;
+  animation:gridDrift 30s linear infinite;
+}
+@keyframes gridDrift{to{background-position:60px 60px;}}
+
+/* ── NAV ── */
+nav {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.85rem 2rem;
+  background:rgba(4,7,9,.96);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:500;
+  backdrop-filter:blur(16px);
+}
+.logo {
+  font-family:var(--head);
+  font-size:1.25rem;letter-spacing:.25em;font-weight:900;
+  text-decoration:none;
+  color:var(--cyan);
+  text-shadow:0 0 25px rgba(0,229,255,.6);
+}
+.logo em{color:var(--orange);font-style:normal;}
+.nav-tabs {display:flex;gap:.3rem;flex-wrap:wrap;}
+.nav-tab {
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;
+  padding:.42rem .9rem;
+  border:1px solid transparent;border-radius:3px;
+  cursor:pointer;background:transparent;color:var(--muted);
+  transition:all .18s;
+}
+.nav-tab:hover{color:var(--text);border-color:var(--border2);}
+.nav-tab.active-c{color:var(--cyan);border-color:var(--cyan);background:var(--cyan-dim);}
+.nav-tab.active-o{color:var(--orange);border-color:var(--orange);background:var(--ora-dim);}
+.nav-tab.active-g{color:var(--green);border-color:var(--green);background:var(--grn-dim);}
+
+/* ── PAGES ── */
+.page{display:none;animation:pageIn .3s ease;}
+.page.active{display:block;}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+main{max-width:1060px;margin:0 auto;padding:2rem 1.5rem 4rem;}
+
+/* ── PAGE HEADER ── */
+.ph{margin-bottom:1.8rem;}
+.ph-tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.25em;color:var(--muted);margin-bottom:.35rem;}
+.ph-title{font-family:var(--head);font-size:1.9rem;font-weight:900;letter-spacing:.04em;line-height:1.1;}
+.ph-title .c{color:var(--cyan);}
+.ph-title .o{color:var(--orange);}
+.ph-title .g{color:var(--green);}
+.ph-desc{color:var(--muted);margin-top:.5rem;font-size:.92rem;line-height:1.65;max-width:580px;}
+
+/* ── INFO BAR ── */
+.info-bar {
+  background:rgba(0,0,0,.3);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:.9rem 1.1rem;
+  margin-bottom:1.5rem;
+  display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;
+}
+.info-bar-label{font-family:var(--mono);font-size:.68rem;letter-spacing:.15em;color:var(--muted);margin-right:.3rem;}
+.tag{
+  font-family:var(--mono);font-size:.66rem;
+  padding:.2rem .55rem;border-radius:3px;
+}
+.tag-c{background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);color:rgba(0,229,255,.9);}
+.tag-o{background:rgba(255,98,0,.06);border:1px solid rgba(255,98,0,.2);color:rgba(255,98,0,.9);}
+.tag-g{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);color:rgba(0,255,136,.9);}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;}
+@media(max-width:700px){.g2{grid-template-columns:1fr;}}
+
+/* ── CARD ── */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:1.4rem;
+  position:relative;
+  overflow:hidden;
+}
+.card-line{position:absolute;top:0;left:0;right:0;height:2px;}
+.card-line.c{background:linear-gradient(90deg,transparent,var(--cyan),transparent);}
+.card-line.o{background:linear-gradient(90deg,transparent,var(--orange),transparent);}
+.card-line.g{background:linear-gradient(90deg,transparent,var(--green),transparent);}
+.card-title{
+  font-family:var(--head);font-size:.82rem;letter-spacing:.12em;
+  color:var(--text);margin-bottom:1.1rem;
+  display:flex;align-items:center;gap:.5rem;
+}
+.step-pill{
+  font-family:var(--mono);font-size:.64rem;padding:.18rem .5rem;border-radius:3px;
+}
+.step-pill.c{background:var(--cyan-dim);border:1px solid rgba(0,229,255,.3);color:var(--cyan);}
+.step-pill.o{background:var(--ora-dim);border:1px solid rgba(255,98,0,.3);color:var(--orange);}
+.step-pill.g{background:var(--grn-dim);border:1px solid rgba(0,255,136,.3);color:var(--green);}
+
+/* ── FORM ── */
+.field{margin-bottom:.95rem;}
+.label{
+  display:flex;align-items:center;gap:.35rem;
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;
+  color:var(--muted);text-transform:uppercase;margin-bottom:.3rem;
+}
+
+/* Tooltip */
+.tip{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;
+  border:1px solid var(--muted);
+  font-family:var(--sans);font-size:.6rem;font-style:italic;
+  color:var(--muted);cursor:help;
+  position:relative;flex-shrink:0;
+}
+.tip::after{
+  content:attr(data-t);
+  position:absolute;bottom:calc(100% + 7px);left:50%;
+  transform:translateX(-50%);
+  background:#06111f;border:1px solid var(--border2);
+  color:var(--text);font-family:var(--sans);font-size:.78rem;
+  font-style:normal;letter-spacing:0;text-transform:none;
+  padding:.5rem .75rem;border-radius:4px;
+  width:230px;line-height:1.45;
+  opacity:0;pointer-events:none;
+  transition:opacity .18s;z-index:600;
+  white-space:normal;
+}
+.tip:hover::after{opacity:1;}
+
+input[type=text],input[type=number],textarea,input[type=file]{
+  width:100%;background:rgba(0,0,0,.45);
+  border:1px solid var(--border);
+  color:var(--text);font-family:var(--mono);font-size:.78rem;
+  padding:.6rem .75rem;border-radius:4px;
+  transition:border-color .18s,box-shadow .18s;
+}
+input:focus,textarea:focus{
+  outline:none;border-color:var(--cyan);
+  box-shadow:0 0 0 2px rgba(0,229,255,.08);
+}
+textarea{resize:vertical;min-height:80px;}
+
+/* Field with copy */
+.fc{position:relative;}
+.fc textarea,.fc input[type=text]{padding-right:2.4rem;}
+.cpbtn{
+  position:absolute;top:.38rem;right:.38rem;
+  background:transparent;border:1px solid var(--border);
+  border-radius:3px;color:var(--muted);
+  font-family:var(--mono);font-size:.68rem;
+  padding:.18rem .38rem;cursor:pointer;
+  transition:all .15s;
+}
+.cpbtn:hover{border-color:var(--cyan);color:var(--cyan);}
+.cpbtn.ok{border-color:var(--green);color:var(--green);}
+
+/* ── UPLOAD ZONE ── */
+.uz{
+  border:2px dashed var(--border);border-radius:5px;
+  padding:1.3rem 1rem;text-align:center;
+  cursor:pointer;position:relative;
+  transition:border-color .2s,background .2s;
+}
+.uz:hover,.uz.over{border-color:var(--cyan);background:rgba(0,229,255,.025);}
+.uz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.uz-ico{font-size:1.6rem;margin-bottom:.3rem;}
+.uz-txt{font-family:var(--mono);font-size:.72rem;color:var(--muted);}
+.uz-name{font-family:var(--mono);font-size:.74rem;color:var(--cyan);margin-top:.25rem;min-height:1rem;}
+.prev-img{width:100%;max-height:150px;object-fit:cover;border-radius:4px;border:1px solid var(--border);display:none;margin-top:.6rem;}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:.45rem;
+  padding:.6rem 1.3rem;border-radius:4px;
+  font-family:var(--mono);font-size:.76rem;letter-spacing:.1em;
+  cursor:pointer;border:1px solid;transition:all .18s;
+  background:transparent;
+}
+.btn:disabled{opacity:.3;cursor:not-allowed;}
+.btn:active:not(:disabled){transform:scale(.97);}
+.btn-c{border-color:var(--cyan);color:var(--cyan);}
+.btn-c:hover:not(:disabled){background:var(--cyan-dim);box-shadow:0 0 18px rgba(0,229,255,.2);}
+.btn-o{border-color:var(--orange);color:var(--orange);}
+.btn-o:hover:not(:disabled){background:var(--ora-dim);box-shadow:0 0 18px rgba(255,98,0,.2);}
+.btn-g{border-color:var(--green);color:var(--green);}
+.btn-g:hover:not(:disabled){background:var(--grn-dim);box-shadow:0 0 18px rgba(0,255,136,.2);}
+.btn-sm{padding:.38rem .8rem;font-size:.68rem;}
+.btn-full{width:100%;justify-content:center;}
+
+/* ── SPINNER ── */
+.spin{
+  display:inline-block;width:12px;height:12px;
+  border:2px solid rgba(255,255,255,.1);
+  border-top-color:currentColor;border-radius:50%;
+  animation:rot .55s linear infinite;
+}
+@keyframes rot{to{transform:rotate(360deg);}}
+
+/* ── HR ── */
+.hr{border:none;border-top:1px solid var(--border);margin:1.1rem 0;}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:.25rem;padding:.18rem .55rem;border-radius:3px;font-family:var(--mono);font-size:.68rem;}
+.badge-ok  {background:rgba(0,255,136,.08);border:1px solid var(--green);color:var(--green);}
+.badge-fail{background:rgba(255,45,85,.08);border:1px solid var(--red);color:var(--red);}
+.badge-warn{background:rgba(255,214,10,.08);border:1px solid var(--yellow);color:var(--yellow);}
+
+/* ── MONO OUT ── */
+.mono-out{
+  background:rgba(0,0,0,.5);border:1px solid var(--border);
+  border-radius:4px;padding:.6rem .75rem;
+  font-family:var(--mono);font-size:.7rem;color:var(--cyan);
+  word-break:break-all;max-height:72px;overflow-y:auto;
+  margin-top:.25rem;
+}
+
+/* ── ERROR / SUCCESS ── */
+.err-box,.suc-box{
+  border-radius:4px;padding:.6rem .8rem;margin-top:.7rem;
+  font-family:var(--mono);font-size:.74rem;display:none;
+}
+.err-box{background:rgba(255,45,85,.06);border:1px solid rgba(255,45,85,.3);color:var(--red);}
+.suc-box{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.3);color:var(--green);}
+
+/* ── REPORT ── */
+.report{background:rgba(0,0,0,.45);border:1px solid var(--border);border-radius:5px;padding:1.1rem;margin-top:1rem;display:none;}
+.report-title{font-family:var(--head);font-size:.72rem;letter-spacing:.15em;color:var(--cyan);margin-bottom:.7rem;}
+.rrow{display:flex;justify-content:space-between;align-items:center;padding:.32rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-family:var(--mono);font-size:.72rem;}
+.rrow:last-child{border-bottom:none;}
+.rkey{color:var(--muted);}
+.rval{color:var(--text);text-align:right;word-break:break-all;max-width:58%;font-size:.66rem;}
+
+/* ── TRUST BOX ── */
+.trust-box{text-align:center;padding:1.1rem;border-radius:5px;margin-top:1rem;display:none;}
+.trust-lbl{font-family:var(--head);font-size:1.35rem;font-weight:900;letter-spacing:.08em;}
+.trust-sub{font-size:.82rem;color:var(--muted);margin-top:.3rem;}
+.trust-full   {background:rgba(0,255,136,.05);border:1px solid var(--green);}
+.trust-partial{background:rgba(255,214,10,.05);border:1px solid var(--yellow);}
+.trust-none   {background:rgba(255,45,85,.05);border:1px solid var(--red);}
+.trust-full    .trust-lbl{color:var(--green);}
+.trust-partial .trust-lbl{color:var(--yellow);}
+.trust-none    .trust-lbl{color:var(--red);}
+
+/* ── RESULT IMAGE ── */
+.result-img{width:100%;border-radius:4px;border:1px solid var(--border);display:none;margin-top:.8rem;}
+
+/* ── BLOCK CARD ── */
+.block-card{background:rgba(0,0,0,.35);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:3px;padding:.65rem .9rem;margin-bottom:.45rem;font-family:var(--mono);font-size:.68rem;}
+.b-id{color:var(--green);font-size:.78rem;margin-bottom:.25rem;}
+.b-hash{color:var(--cyan);word-break:break-all;}
+.b-prev{color:var(--muted);word-break:break-all;}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:1.5rem;right:1.5rem;
+  padding:.6rem 1.1rem;border-radius:4px;
+  font-family:var(--mono);font-size:.72rem;
+  background:var(--card);
+  transform:translateY(60px);opacity:0;
+  transition:all .22s;z-index:9000;pointer-events:none;
+}
+#toast.show-ok {border:1px solid var(--green);color:var(--green);transform:translateY(0);opacity:1;}
+#toast.show-err{border:1px solid var(--red);  color:var(--red);  transform:translateY(0);opacity:1;}
+
+/* ── HOME PAGE ── */
+.hero{min-height:76vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2rem 1rem;}
+.hero-tag{font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;color:var(--muted);margin-bottom:1.1rem;}
+.hero-title{font-family:var(--head);font-size:clamp(3.2rem,9vw,6rem);font-weight:900;letter-spacing:.1em;line-height:1;}
+.hero-sub{font-size:.95rem;color:var(--muted);max-width:460px;margin:1.1rem auto 2.4rem;line-height:1.7;}
+.level-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;width:100%;max-width:800px;}
+@media(max-width:580px){.level-grid{grid-template-columns:1fr;}}
+.lcard{
+  display:flex;flex-direction:column;
+  padding:1.6rem 1.3rem;border-radius:6px;
+  border:1px solid var(--border);background:var(--card);
+  cursor:pointer;transition:transform .2s,box-shadow .2s;
+  text-align:left;
+}
+.lcard:hover{transform:translateY(-4px);}
+.lcard.lv1{border-top:2px solid var(--cyan);}
+.lcard.lv2{border-top:2px solid var(--orange);}
+.lcard.lv3{border-top:2px solid var(--green);}
+.lcard.lv1:hover{box-shadow:0 8px 35px rgba(0,229,255,.1);}
+.lcard.lv2:hover{box-shadow:0 8px 35px rgba(255,98,0,.1);}
+.lcard.lv3:hover{box-shadow:0 8px 35px rgba(0,255,136,.1);}
+.ln{font-family:var(--head);font-size:2rem;font-weight:900;line-height:1;margin-bottom:.35rem;}
+.lv1 .ln{color:var(--cyan);}
+.lv2 .ln{color:var(--orange);}
+.lv3 .ln{color:var(--green);}
+.lname{font-family:var(--head);font-size:.75rem;letter-spacing:.15em;color:var(--text);margin-bottom:.55rem;}
+.ldesc{font-size:.85rem;color:var(--muted);line-height:1.5;margin-bottom:.8rem;flex:1;}
+.ltags{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.8rem;}
+.larrow{font-family:var(--mono);font-size:.68rem;margin-top:auto;}
+.lv1 .larrow{color:var(--cyan);}
+.lv2 .larrow{color:var(--orange);}
+.lv3 .larrow{color:var(--green);}
+
+/* autofill note */
+.autofill-note{font-family:var(--mono);font-size:.66rem;color:var(--muted);margin-top:.25rem;}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="logo">COD<em>E</em>C</span>
+  <div class="nav-tabs">
+    <button class="nav-tab" onclick="showPage('home')" id="tab-home">HOME</button>
+    <button class="nav-tab" onclick="showPage('basic')" id="tab-basic">01 BASIC</button>
+    <button class="nav-tab" onclick="showPage('secure')" id="tab-secure">02 SECURE</button>
+    <button class="nav-tab" onclick="showPage('chain')" id="tab-chain">03 CHAIN</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ════════════════════ HOME ════════════════════ -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-tag">// SECURE IMAGE CRYPTOGRAPHY SYSTEM</div>
+    <h1 class="hero-title">
+      <span style="color:var(--cyan)">CO</span><span style="color:var(--text)">D</span><span style="color:var(--orange)">EC</span>
+    </h1>
+    <p class="hero-sub">Three levels of image encryption — from simple AES to full blockchain verification. All runs in your browser.</p>
+    <div class="level-grid">
+      <div class="lcard lv1" onclick="showPage('basic')">
+        <div class="ln">01</div>
+        <div class="lname">BASIC</div>
+        <div class="ldesc">Simple AES-256 encryption. Upload image, get encrypted file + key. Share and decrypt anytime.</div>
+        <div class="ltags">
+          <span class="tag tag-c">AES-256</span>
+          <span class="tag tag-c">Symmetric</span>
+          <span class="tag tag-c">Fast</span>
+        </div>
+        <div class="larrow">ENTER →</div>
+      </div>
+      <div class="lcard lv2" onclick="showPage('secure')">
+        <div class="ln">02</div>
+        <div class="lname">SECURE</div>
+        <div class="ldesc">RSA + AES hybrid with digital signatures. Proves who sent it and detects tampering.</div>
+        <div class="ltags">
+          <span class="tag tag-o">RSA-2048</span>
+          <span class="tag tag-o">AES-256</span>
+          <span class="tag tag-o">Signatures</span>
+        </div>
+        <div class="larrow">ENTER →</div>
+      </div>
+      <div class="lcard lv3" onclick="showPage('chain')">
+        <div class="ln">03</div>
+        <div class="lname">CHAIN</div>
+        <div class="ldesc">Full pipeline with blockchain hash registry. Generates a complete Trust Report after decryption.</div>
+        <div class="ltags">
+          <span class="tag tag-g">Blockchain</span>
+          <span class="tag tag-g">SHA-256</span>
+          <span class="tag tag-g">Trust Report</span>
+        </div>
+        <div class="larrow">ENTER →</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ BASIC ════════════════════ -->
+<div class="page" id="page-basic">
+  <div class="ph">
+    <div class="ph-tag">// LEVEL 01 — AES-256 SYMMETRIC ENCRYPTION</div>
+    <h1 class="ph-title"><span class="c">BASIC</span> ENCRYPTION</h1>
+    <p class="ph-desc">Upload an image → get an encrypted <strong>.bin file</strong> + a secret key. Share both with anyone to decrypt. Everything runs in your browser — no server needed.</p>
+  </div>
+  <div class="info-bar">
+    <span class="info-bar-label">HOW IT WORKS:</span>
+    <span class="tag tag-c">AES-256 = military-grade encryption</span>
+    <span class="tag tag-c">Same key encrypts & decrypts</span>
+    <span class="tag tag-c">IV is stored inside the .bin file automatically</span>
+    <span class="tag tag-c">Without the key, the file is unreadable</span>
+  </div>
+
+  <div class="g2">
+    <!-- ENCRYPT -->
+    <div class="card">
+      <div class="card-line c"></div>
+      <div class="card-title"><span class="step-pill c">STEP 1</span> ENCRYPT IMAGE</div>
+
+      <div class="field">
+        <div class="label">Upload Image <span class="tip" data-t="Upload any image (JPG, PNG, etc.). It will be encrypted so no one can view it without the secret key.">i</span></div>
+        <div class="uz" id="b-enc-zone">
+          <input type="file" id="b-enc-file" accept="image/*" onchange="onBasicFile(this)"/>
+          <div class="uz-ico">🔒</div>
+          <div class="uz-txt">Click or drag image here</div>
+          <div class="uz-name" id="b-enc-name"></div>
+        </div>
+        <img id="b-enc-prev" class="prev-img"/>
+      </div>
+
+      <button class="btn btn-c" id="b-enc-btn" onclick="basicEncrypt()">
+        <span class="spin" id="b-enc-spin" style="display:none"></span>
+        ENCRYPT IMAGE
+      </button>
+      <div class="err-box" id="b-enc-err"></div>
+
+      <div id="b-enc-out" style="display:none">
+        <div class="hr"></div>
+        <div class="field">
+          <div class="label">
+            AES Secret Key
+            <span class="tip" data-t="This is your secret key. KEEP IT SAFE. Anyone with this key and the .bin file can decrypt the image. Share it privately — never publicly.">i</span>
+          </div>
+          <div class="fc">
+            <textarea id="b-key-out" rows="2" readonly></textarea>
+            <button class="cpbtn" onclick="cp('b-key-out',this)">⧉</button>
+          </div>
+          <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap;">
+            <button class="btn btn-c btn-sm" onclick="dlKey()">↓ DOWNLOAD KEY (.txt)</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">
+            IV (Initialization Vector)
+            <span class="tip" data-t="A random value that makes every encryption unique. It is NOT a secret — it is automatically stored inside your .bin file. You do NOT need to share it separately.">i</span>
+          </div>
+          <div class="mono-out" id="b-iv-out"></div>
+          <div style="font-family:var(--mono);font-size:.66rem;color:var(--muted);margin-top:.25rem;">✓ Automatically included in the .bin file</div>
+        </div>
+
+        <button class="btn btn-c btn-full" style="margin-top:.5rem;" onclick="dlBin()">
+          ↓ DOWNLOAD ENCRYPTED FILE (.bin)
+        </button>
+        <div class="suc-box" id="b-enc-suc" style="display:block;margin-top:.6rem;"></div>
+        <div style="font-family:var(--mono);font-size:.68rem;color:var(--muted);margin-top:.4rem;" id="b-size-info"></div>
+      </div>
+    </div>
+
+    <!-- DECRYPT -->
+    <div class="card">
+      <div class="card-line c"></div>
+      <div class="card-title"><span class="step-pill c">STEP 2</span> DECRYPT IMAGE</div>
+
+      <div class="field">
+        <div class="label">Upload Encrypted File (.bin) <span class="tip" data-t="Upload the .bin file that was downloaded after encryption. This file contains the encrypted image data and the IV.">i</span></div>
+        <div class="uz" id="b-dec-zone">
+          <input type="file" id="b-dec-file" accept=".bin" onchange="document.getElementById('b-dec-name').textContent=this.files[0]?.name||''"/>
+          <div class="uz-ico">📂</div>
+          <div class="uz-txt">Click or drag .bin file here</div>
+          <div class="uz-name" id="b-dec-name"></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">Paste AES Secret Key <span class="tip" data-t="Paste the AES key that was generated during encryption. The correct key is required to decrypt the image.">i</span></div>
+        <div class="fc">
+          <textarea id="b-key-in" rows="2" placeholder="Paste the AES key here..."></textarea>
+          <button class="cpbtn" onclick="cp('b-key-in',this)">⧉</button>
+        </div>
+      </div>
+
+      <button class="btn btn-c" onclick="basicDecrypt()">
+        <span class="spin" id="b-dec-spin" style="display:none"></span>
+        DECRYPT IMAGE
+      </button>
+      <div class="err-box" id="b-dec-err"></div>
+
+      <div id="b-dec-out" style="display:none">
+        <div class="hr"></div>
+        <img id="b-dec-img" class="result-img" style="display:block"/>
+        <div class="suc-box" style="display:block;margin-top:.7rem;">✓ Image decrypted successfully!</div>
+        <button class="btn btn-c btn-sm" style="margin-top:.7rem;" id="b-dl-dec" onclick="dlDecrypted('b-dec-img','decrypted_basic.png')">↓ DOWNLOAD IMAGE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ SECURE ════════════════════ -->
+<div class="page" id="page-secure">
+  <div class="ph">
+    <div class="ph-tag">// LEVEL 02 — RSA-2048 + AES-256 + DIGITAL SIGNATURES</div>
+    <h1 class="ph-title"><span class="o">SECURE</span> ENCRYPTION</h1>
+    <p class="ph-desc">Hybrid encryption with a digital signature. The recipient verifies the image came from you and was not tampered with.</p>
+  </div>
+  <div class="info-bar">
+    <span class="info-bar-label">HOW IT WORKS:</span>
+    <span class="tag tag-o">AES-256 encrypts the image (fast)</span>
+    <span class="tag tag-o">RSA-2048 encrypts the AES key (safe exchange)</span>
+    <span class="tag tag-o">Digital Signature = proof sender sent it</span>
+    <span class="tag tag-o">Only recipient's private key can decrypt</span>
+  </div>
+
+  <!-- Step 1: Key Generation -->
+  <div class="card" style="margin-bottom:1.4rem;">
+    <div class="card-line o"></div>
+    <div class="card-title"><span class="step-pill o">STEP 1</span> GENERATE RSA KEY PAIRS</div>
+    <p style="color:var(--muted);font-size:.86rem;margin-bottom:1.1rem;">Each person needs a key pair: a <strong>Public Key</strong> (shareable) and a <strong>Private Key</strong> (secret). Generate one for the sender and one for the recipient.</p>
+    <div class="g2">
+      <div>
+        <button class="btn btn-o btn-sm" onclick="genRSA('s')">GENERATE SENDER KEYS</button>
+        <span class="tip" data-t="Sender = the person encrypting and sending the image. Their private key signs the image. Their public key lets the recipient verify the signature." style="margin-left:.5rem;">i</span>
+        <div class="field" style="margin-top:.8rem;">
+          <div class="label">Sender Private Key <span class="tip" data-t="SECRET — never share this. Used to create the digital signature so the recipient knows the image came from you.">i</span></div>
+          <div class="fc"><textarea id="s-priv" rows="4" readonly placeholder="Click Generate Sender Keys..."></textarea><button class="cpbtn" onclick="cp('s-priv',this)">⧉</button></div>
+          <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+            <button class="btn btn-o btn-sm" id="dl-s-priv" style="display:none" onclick="dlTxt('s-priv','sender_private_key.txt')">↓ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">Sender Public Key <span class="tip" data-t="Share this with the recipient. They use it to verify the digital signature and confirm the image came from you.">i</span></div>
+          <div class="fc"><textarea id="s-pub" rows="4" readonly placeholder="Generated here..."></textarea><button class="cpbtn" onclick="cp('s-pub',this)">⧉</button></div>
+          <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+            <button class="btn btn-o btn-sm" id="dl-s-pub" style="display:none" onclick="dlTxt('s-pub','sender_public_key.txt')">↓ DOWNLOAD</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-o btn-sm" onclick="genRSA('r')">GENERATE RECIPIENT KEYS</button>
+        <span class="tip" data-t="Recipient = the person who will receive and decrypt the image. Their public key is used to encrypt the AES key. Only their private key can decrypt it." style="margin-left:.5rem;">i</span>
+        <div class="field" style="margin-top:.8rem;">
+          <div class="label">Recipient Private Key <span class="tip" data-t="SECRET — recipient must keep this safe. This is the only key that can decrypt the AES key and therefore the image.">i</span></div>
+          <div class="fc"><textarea id="r-priv" rows="4" readonly placeholder="Click Generate Recipient Keys..."></textarea><button class="cpbtn" onclick="cp('r-priv',this)">⧉</button></div>
+          <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+            <button class="btn btn-o btn-sm" id="dl-r-priv" style="display:none" onclick="dlTxt('r-priv','recipient_private_key.txt')">↓ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">Recipient Public Key <span class="tip" data-t="Share this with the sender. They use it to encrypt the AES key so only the recipient can decrypt it.">i</span></div>
+          <div class="fc"><textarea id="r-pub" rows="4" readonly placeholder="Generated here..."></textarea><button class="cpbtn" onclick="cp('r-pub',this)">⧉</button></div>
+          <div style="display:flex;gap:.4rem;margin-top:.35rem;flex-wrap:wrap;">
+            <button class="btn btn-o btn-sm" id="dl-r-pub" style="display:none" onclick="dlTxt('r-pub','recipient_public_key.txt')">↓ DOWNLOAD</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <!-- ENCRYPT -->
+    <div class="card">
+      <div class="card-line o"></div>
+      <div class="card-title"><span class="step-pill o">STEP 2</span> ENCRYPT + SIGN</div>
+      <div class="field">
+        <div class="label">Select Image <span class="tip" data-t="The image to encrypt and send securely.">i</span></div>
+        <div class="uz"><input type="file" id="s-enc-file" accept="image/*" onchange="onPrevImg(this,'s-enc-prev','s-enc-name')"/><div class="uz-ico">🔐</div><div class="uz-txt">Click or drag image here</div><div class="uz-name" id="s-enc-name"></div></div>
+        <img id="s-enc-prev" class="prev-img"/>
+      </div>
+      <div class="field">
+        <div class="label">Recipient's Public Key <span class="tip" data-t="The AES key will be encrypted with this so only the recipient can decrypt the image.">i</span></div>
+        <div class="fc"><textarea id="se-rpub" rows="3" placeholder="Paste recipient's public key..."></textarea><button class="cpbtn" onclick="cp('se-rpub',this)">⧉</button></div>
+        <button class="btn btn-o btn-sm" style="margin-top:.3rem;" onclick="af('r-pub','se-rpub')">⚡ AUTO-FILL FROM STEP 1</button>
+      </div>
+      <div class="field">
+        <div class="label">Sender's Private Key <span class="tip" data-t="Your private key. Used to create the digital signature proving the image came from you.">i</span></div>
+        <div class="fc"><textarea id="se-spriv" rows="3" placeholder="Paste your private key..."></textarea><button class="cpbtn" onclick="cp('se-spriv',this)">⧉</button></div>
+        <button class="btn btn-o btn-sm" style="margin-top:.3rem;" onclick="af('s-priv','se-spriv')">⚡ AUTO-FILL FROM STEP 1</button>
+      </div>
+      <button class="btn btn-o" onclick="secureEncrypt()"><span class="spin" id="se-enc-spin" style="display:none"></span>ENCRYPT + SIGN →</button>
+      <div class="err-box" id="se-enc-err"></div>
+      <div id="se-enc-out" style="display:none">
+        <div class="hr"></div>
+        <p style="color:var(--muted);font-size:.8rem;margin-bottom:.8rem;">Copy or download all fields. The recipient needs all of these to decrypt.</p>
+        <div class="field"><div class="label">Encrypted Image <span class="tip" data-t="The image encrypted with AES. Unreadable without the AES key.">i</span></div><div class="fc"><textarea id="pkg-eimg" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('pkg-eimg',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Encrypted AES Key <span class="tip" data-t="The AES key encrypted with the recipient's RSA public key. Only the recipient's private key can open this.">i</span></div><div class="fc"><textarea id="pkg-ekey" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('pkg-ekey',this)">⧉</button></div></div>
+        <div class="field"><div class="label">IV <span class="tip" data-t="Initialization Vector — needed for AES decryption. Not a secret.">i</span></div><div class="fc"><input type="text" id="pkg-iv" readonly/><button class="cpbtn" onclick="cp('pkg-iv',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Digital Signature <span class="tip" data-t="Cryptographic proof that you (the sender) created this encrypted image. The recipient verifies it with your public key.">i</span></div><div class="fc"><textarea id="pkg-sig" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('pkg-sig',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Image Hash (SHA-256) <span class="tip" data-t="A unique fingerprint of the original image. If even one pixel changes, this hash changes completely.">i</span></div><div class="fc"><input type="text" id="pkg-hash" readonly/><button class="cpbtn" onclick="cp('pkg-hash',this)">⧉</button></div></div>
+        <button class="btn btn-o btn-sm btn-full" style="margin-top:.3rem;" onclick="dlPkg('secure')">↓ DOWNLOAD FULL PACKAGE (.json)</button>
+      </div>
+    </div>
+
+    <!-- DECRYPT -->
+    <div class="card">
+      <div class="card-line o"></div>
+      <div class="card-title"><span class="step-pill o">STEP 3</span> DECRYPT + VERIFY</div>
+      <div class="field"><div class="label">Encrypted Image <span class="tip" data-t="From the sender's package.">i</span></div><textarea id="sd-eimg" rows="3" placeholder="Paste encrypted image..."></textarea></div>
+      <div class="field"><div class="label">Encrypted AES Key <span class="tip" data-t="From the sender's package.">i</span></div><textarea id="sd-ekey" rows="3" placeholder="Paste encrypted AES key..."></textarea></div>
+      <div class="field"><div class="label">IV <span class="tip" data-t="From the sender's package.">i</span></div><input type="text" id="sd-iv" placeholder="Paste IV..."/></div>
+      <div class="field"><div class="label">Digital Signature <span class="tip" data-t="From the sender's package.">i</span></div><textarea id="sd-sig" rows="3" placeholder="Paste signature..."></textarea></div>
+      <div class="field"><div class="label">Recipient's Private Key <span class="tip" data-t="Used to decrypt the AES key. Must match the public key used during encryption.">i</span></div><div class="fc"><textarea id="sd-rpriv" rows="3" placeholder="Paste recipient's private key..."></textarea><button class="cpbtn" onclick="cp('sd-rpriv',this)">⧉</button></div><button class="btn btn-o btn-sm" style="margin-top:.3rem;" onclick="af('r-priv','sd-rpriv')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <div class="field"><div class="label">Sender's Public Key <span class="tip" data-t="Used to verify the digital signature. Must be the sender's public key.">i</span></div><div class="fc"><textarea id="sd-spub" rows="3" placeholder="Paste sender's public key..."></textarea><button class="cpbtn" onclick="cp('sd-spub',this)">⧉</button></div><button class="btn btn-o btn-sm" style="margin-top:.3rem;" onclick="af('s-pub','sd-spub')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <button class="btn btn-o" onclick="secureDecrypt()"><span class="spin" id="sd-spin" style="display:none"></span>DECRYPT + VERIFY →</button>
+      <div class="err-box" id="sd-err"></div>
+      <div id="sd-out" style="display:none">
+        <div class="hr"></div>
+        <img id="sd-img" class="result-img" style="display:block"/>
+        <div class="report" style="display:block;margin-top:.9rem;">
+          <div class="report-title">// VERIFICATION RESULT</div>
+          <div class="rrow"><span class="rkey">Digital Signature</span><span id="sd-rep-sig"></span></div>
+          <div class="rrow"><span class="rkey">Image Hash</span><span class="rval" id="sd-rep-hash"></span></div>
+          <div class="rrow"><span class="rkey">Verdict</span><span id="sd-rep-verdict"></span></div>
+        </div>
+        <button class="btn btn-o btn-sm" style="margin-top:.7rem;" onclick="dlDecrypted('sd-img','decrypted_secure.png')">↓ DOWNLOAD IMAGE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ CHAIN ════════════════════ -->
+<div class="page" id="page-chain">
+  <div class="ph">
+    <div class="ph-tag">// LEVEL 03 — FULL PIPELINE + BLOCKCHAIN</div>
+    <h1 class="ph-title"><span class="g">CHAIN</span> ENCRYPTION</h1>
+    <p class="ph-desc">Everything from Section 2, plus the image's SHA-256 hash is permanently registered on a blockchain. After decryption, the system checks blockchain records and generates a full Trust Report.</p>
+  </div>
+  <div class="info-bar">
+    <span class="info-bar-label">HOW IT WORKS:</span>
+    <span class="tag tag-g">AES-256 + RSA-2048 hybrid</span>
+    <span class="tag tag-g">Digital signature (sender proof)</span>
+    <span class="tag tag-g">SHA-256 hash → registered on blockchain</span>
+    <span class="tag tag-g">Hash verified after decryption</span>
+    <span class="tag tag-g">Trust Report: FULL / PARTIAL / NONE</span>
+  </div>
+
+  <!-- Key Gen -->
+  <div class="card" style="margin-bottom:1.4rem;">
+    <div class="card-line g"></div>
+    <div class="card-title"><span class="step-pill g">STEP 1</span> GENERATE KEY PAIRS</div>
+    <div class="g2">
+      <div>
+        <button class="btn btn-g btn-sm" onclick="genRSA('cs')">GENERATE SENDER KEYS</button>
+        <div class="field" style="margin-top:.8rem;"><div class="label">Sender Private Key <span class="tip" data-t="Keep secret. Used to sign the image hash.">i</span></div><div class="fc"><textarea id="cs-priv" rows="4" readonly placeholder="Click Generate..."></textarea><button class="cpbtn" onclick="cp('cs-priv',this)">⧉</button></div><div style="display:flex;gap:.4rem;margin-top:.35rem;"><button class="btn btn-g btn-sm" id="dl-cs-priv" style="display:none" onclick="dlTxt('cs-priv','chain_sender_private.txt')">↓ DOWNLOAD</button></div></div>
+        <div class="field"><div class="label">Sender Public Key <span class="tip" data-t="Share with recipient to verify your signature.">i</span></div><div class="fc"><textarea id="cs-pub" rows="4" readonly placeholder="Generated here..."></textarea><button class="cpbtn" onclick="cp('cs-pub',this)">⧉</button></div><div style="display:flex;gap:.4rem;margin-top:.35rem;"><button class="btn btn-g btn-sm" id="dl-cs-pub" style="display:none" onclick="dlTxt('cs-pub','chain_sender_public.txt')">↓ DOWNLOAD</button></div></div>
+      </div>
+      <div>
+        <button class="btn btn-g btn-sm" onclick="genRSA('cr')">GENERATE RECIPIENT KEYS</button>
+        <div class="field" style="margin-top:.8rem;"><div class="label">Recipient Private Key <span class="tip" data-t="Keep secret. Decrypts the AES key.">i</span></div><div class="fc"><textarea id="cr-priv" rows="4" readonly placeholder="Click Generate..."></textarea><button class="cpbtn" onclick="cp('cr-priv',this)">⧉</button></div><div style="display:flex;gap:.4rem;margin-top:.35rem;"><button class="btn btn-g btn-sm" id="dl-cr-priv" style="display:none" onclick="dlTxt('cr-priv','chain_recipient_private.txt')">↓ DOWNLOAD</button></div></div>
+        <div class="field"><div class="label">Recipient Public Key <span class="tip" data-t="Share with sender to encrypt the AES key.">i</span></div><div class="fc"><textarea id="cr-pub" rows="4" readonly placeholder="Generated here..."></textarea><button class="cpbtn" onclick="cp('cr-pub',this)">⧉</button></div><div style="display:flex;gap:.4rem;margin-top:.35rem;"><button class="btn btn-g btn-sm" id="dl-cr-pub" style="display:none" onclick="dlTxt('cr-pub','chain_recipient_public.txt')">↓ DOWNLOAD</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <!-- ENCRYPT -->
+    <div class="card">
+      <div class="card-line g"></div>
+      <div class="card-title"><span class="step-pill g">STEP 2</span> ENCRYPT + REGISTER ON CHAIN</div>
+      <div class="field"><div class="label">Select Image <span class="tip" data-t="The SHA-256 hash of this image will be registered on the blockchain before sending.">i</span></div><div class="uz"><input type="file" id="ch-enc-file" accept="image/*" onchange="onPrevImg(this,'ch-enc-prev','ch-enc-name')"/><div class="uz-ico">⛓</div><div class="uz-txt">Click or drag image here</div><div class="uz-name" id="ch-enc-name"></div></div><img id="ch-enc-prev" class="prev-img"/></div>
+      <div class="field"><div class="label">Recipient's Public Key <span class="tip" data-t="Used to encrypt the AES key.">i</span></div><div class="fc"><textarea id="ch-rpub" rows="3" placeholder="Paste recipient's public key..."></textarea><button class="cpbtn" onclick="cp('ch-rpub',this)">⧉</button></div><button class="btn btn-g btn-sm" style="margin-top:.3rem;" onclick="af('cr-pub','ch-rpub')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <div class="field"><div class="label">Sender's Private Key <span class="tip" data-t="Used to sign the image hash.">i</span></div><div class="fc"><textarea id="ch-spriv" rows="3" placeholder="Paste your private key..."></textarea><button class="cpbtn" onclick="cp('ch-spriv',this)">⧉</button></div><button class="btn btn-g btn-sm" style="margin-top:.3rem;" onclick="af('cs-priv','ch-spriv')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <button class="btn btn-g" onclick="chainEncrypt()"><span class="spin" id="ch-enc-spin" style="display:none"></span>ENCRYPT + REGISTER ON CHAIN →</button>
+      <div class="err-box" id="ch-enc-err"></div>
+      <div id="ch-enc-out" style="display:none">
+        <div class="hr"></div>
+        <div class="field"><div class="label">Block ID <span class="tip" data-t="IMPORTANT — save this number! The recipient needs it to verify the image against the blockchain during decryption.">i</span></div>
+          <div style="background:var(--grn-dim);border:1px solid var(--green);border-radius:4px;padding:.8rem;font-family:var(--head);font-size:1.5rem;color:var(--green);text-align:center;" id="ch-block-id-disp"></div>
+          <div style="font-family:var(--mono);font-size:.66rem;color:var(--muted);text-align:center;margin-top:.25rem;">⬆ Give this number to the recipient</div>
+        </div>
+        <div class="field"><div class="label">Image Hash (on blockchain) <span class="tip" data-t="SHA-256 fingerprint stored on the blockchain. Used to verify the image was not tampered with.">i</span></div><div class="fc"><input type="text" id="ch-img-hash" readonly/><button class="cpbtn" onclick="cp('ch-img-hash',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Block Hash <span class="tip" data-t="Hash of this entire block (includes block ID + image hash + previous block hash). Proves it is linked to the chain.">i</span></div><div class="fc"><input type="text" id="ch-block-hash" readonly/><button class="cpbtn" onclick="cp('ch-block-hash',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Encrypted Image <span class="tip" data-t="AES-encrypted image data.">i</span></div><div class="fc"><textarea id="ch-pkg-eimg" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('ch-pkg-eimg',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Encrypted AES Key <span class="tip" data-t="AES key encrypted with recipient's RSA public key.">i</span></div><div class="fc"><textarea id="ch-pkg-ekey" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('ch-pkg-ekey',this)">⧉</button></div></div>
+        <div class="field"><div class="label">IV <span class="tip" data-t="Needed for AES decryption.">i</span></div><div class="fc"><input type="text" id="ch-pkg-iv" readonly/><button class="cpbtn" onclick="cp('ch-pkg-iv',this)">⧉</button></div></div>
+        <div class="field"><div class="label">Digital Signature <span class="tip" data-t="Cryptographic proof the sender signed this.">i</span></div><div class="fc"><textarea id="ch-pkg-sig" rows="3" readonly></textarea><button class="cpbtn" onclick="cp('ch-pkg-sig',this)">⧉</button></div></div>
+        <button class="btn btn-g btn-sm btn-full" style="margin-top:.3rem;" onclick="dlPkg('chain')">↓ DOWNLOAD FULL PACKAGE (.json)</button>
+      </div>
+    </div>
+
+    <!-- DECRYPT -->
+    <div class="card">
+      <div class="card-line g"></div>
+      <div class="card-title"><span class="step-pill g">STEP 3</span> DECRYPT + VERIFY CHAIN</div>
+      <div class="field"><div class="label">Block ID <span class="tip" data-t="The block number from Step 2. Used to look up the blockchain record.">i</span></div><input type="number" id="cd-bid" placeholder="e.g. 1" min="1"/></div>
+      <div class="field"><div class="label">Encrypted Image</div><textarea id="cd-eimg" rows="3" placeholder="Paste..."></textarea></div>
+      <div class="field"><div class="label">Encrypted AES Key</div><textarea id="cd-ekey" rows="3" placeholder="Paste..."></textarea></div>
+      <div class="field"><div class="label">IV</div><input type="text" id="cd-iv" placeholder="Paste IV..."/></div>
+      <div class="field"><div class="label">Digital Signature</div><textarea id="cd-sig" rows="3" placeholder="Paste signature..."></textarea></div>
+      <div class="field"><div class="label">Recipient's Private Key <span class="tip" data-t="Decrypts the AES key.">i</span></div><div class="fc"><textarea id="cd-rpriv" rows="3" placeholder="Paste recipient's private key..."></textarea><button class="cpbtn" onclick="cp('cd-rpriv',this)">⧉</button></div><button class="btn btn-g btn-sm" style="margin-top:.3rem;" onclick="af('cr-priv','cd-rpriv')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <div class="field"><div class="label">Sender's Public Key <span class="tip" data-t="Verifies the digital signature.">i</span></div><div class="fc"><textarea id="cd-spub" rows="3" placeholder="Paste sender's public key..."></textarea><button class="cpbtn" onclick="cp('cd-spub',this)">⧉</button></div><button class="btn btn-g btn-sm" style="margin-top:.3rem;" onclick="af('cs-pub','cd-spub')">⚡ AUTO-FILL FROM STEP 1</button></div>
+      <button class="btn btn-g" onclick="chainDecrypt()"><span class="spin" id="cd-spin" style="display:none"></span>DECRYPT + VERIFY →</button>
+      <div class="err-box" id="cd-err"></div>
+      <div id="cd-out" style="display:none">
+        <div class="hr"></div>
+        <img id="cd-img" class="result-img" style="display:block"/>
+        <div class="report" style="display:block;margin-top:.9rem;">
+          <div class="report-title">// CODEC TRUST REPORT</div>
+          <div class="rrow"><span class="rkey">Digital Signature</span><span id="cd-rep-sig"></span></div>
+          <div class="rrow"><span class="rkey">Blockchain Hash Match</span><span id="cd-rep-hash"></span></div>
+          <div class="rrow"><span class="rkey">Blockchain Record</span><span id="cd-rep-rec"></span></div>
+          <div class="rrow"><span class="rkey">Computed Hash</span><span class="rval" id="cd-rep-comp"></span></div>
+          <div class="rrow"><span class="rkey">Registered Hash</span><span class="rval" id="cd-rep-reg"></span></div>
+        </div>
+        <div class="trust-box" id="cd-trust">
+          <div class="trust-lbl" id="cd-trust-lbl"></div>
+          <div class="trust-sub" id="cd-trust-sub"></div>
+        </div>
+        <button class="btn btn-g btn-sm" style="margin-top:.7rem;" onclick="dlDecrypted('cd-img','decrypted_chain.png')">↓ DOWNLOAD IMAGE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blockchain Explorer -->
+  <div class="card" style="margin-top:1.4rem;">
+    <div class="card-line g"></div>
+    <div class="card-title">
+      <span class="step-pill g">EXPLORER</span> LIVE BLOCKCHAIN REGISTRY
+      <span class="tip" data-t="Every image encrypted in Section 3 registers its SHA-256 hash here as a block. Each block links to the previous one — just like a real blockchain.">i</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+      <span style="font-family:var(--mono);font-size:.68rem;color:var(--muted);">Blocks registered this session</span>
+      <button class="btn btn-g btn-sm" onclick="renderChain()">↺ REFRESH</button>
+    </div>
+    <div id="chain-exp"><div style="font-family:var(--mono);font-size:.72rem;color:var(--muted);">No blocks yet. Encrypt an image above to register the first block.</div></div>
+  </div>
+</div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════════
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t=>t.className='nav-tab');
+  const colorMap={home:'',basic:'active-c',secure:'active-o',chain:'active-g'};
+  const tab=document.getElementById('tab-'+name);
+  if(tab) tab.className='nav-tab '+(colorMap[name]||'');
+  window.scrollTo(0,0);
+}
+
+let toastTimer;
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=type==='ok'?'show-ok':'show-err';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.className='',2600);
+}
+
+function show(id){const e=document.getElementById(id);if(e)e.style.display='block';}
+function hide(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+
+function showErr(id,msg){const e=document.getElementById(id);if(!e)return;e.textContent='⚠ '+msg;e.style.display='block';}
+function clearErr(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+
+function setVal(id,v){const e=document.getElementById(id);if(e){if(e.tagName==='INPUT'||e.tagName==='TEXTAREA')e.value=v;else e.textContent=v;}}
+function getVal(id){const e=document.getElementById(id);return e?(e.value||e.textContent||'').trim():'';}
+
+function cp(id,btn){
+  const e=document.getElementById(id);
+  const txt=e?.value||e?.textContent||'';
+  if(!txt){toast('Nothing to copy','err');return;}
+  navigator.clipboard.writeText(txt).then(()=>{
+    if(btn){btn.textContent='✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='⧉';btn.classList.remove('ok');},1500);}
+    toast('Copied!');
+  }).catch(()=>toast('Copy failed','err'));
+}
+
+function af(srcId,destId){
+  const v=getVal(srcId);
+  if(!v){toast('Generate keys first in Step 1','err');return;}
+  setVal(destId,v);toast('Auto-filled!');
+}
+
+function dlTxt(id,fname){
+  const v=getVal(id);
+  if(!v)return;
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(v);
+  a.download=fname;a.click();
+  toast('Downloaded!');
+}
+
+function dlDecrypted(imgId,fname){
+  const img=document.getElementById(imgId);
+  if(!img?.src)return;
+  const a=document.createElement('a');
+  a.href=img.src;a.download=fname;a.click();
+  toast('Image downloaded!');
+}
+
+function onPrevImg(inp,prevId,nameId){
+  const file=inp.files[0];if(!file)return;
+  document.getElementById(nameId).textContent=file.name;
+  const r=new FileReader();
+  r.onload=e=>{const img=document.getElementById(prevId);img.src=e.target.result;img.style.display='block';};
+  r.readAsDataURL(file);
+}
+
+function onBasicFile(inp){
+  const file=inp.files[0];if(!file)return;
+  document.getElementById('b-enc-name').textContent=file.name;
+  const r=new FileReader();
+  r.onload=e=>{const img=document.getElementById('b-enc-prev');img.src=e.target.result;img.style.display='block';};
+  r.readAsDataURL(file);
+}
+
+// AB = ArrayBuffer helpers
+function ab2b64(ab){return btoa(String.fromCharCode(...new Uint8Array(ab)));}
+function b642ab(b64){const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return arr.buffer;}
+function ab2hex(ab){return Array.from(new Uint8Array(ab)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+
+async function fileToAB(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsArrayBuffer(file);});}
+
+// ══════════════════════════════════════════════
+//  SECTION 1 — BASIC (Web Crypto AES-256-CBC)
+// ══════════════════════════════════════════════
+let basicResult=null;
+
+async function basicEncrypt(){
+  clearErr('b-enc-err');hide('b-enc-out');
+  const file=document.getElementById('b-enc-file').files[0];
+  if(!file){showErr('b-enc-err','Please select an image first.');return;}
+
+  const btn=document.getElementById('b-enc-btn');
+  const spin=document.getElementById('b-enc-spin');
+  btn.disabled=true;spin.style.display='inline-block';
+
+  try{
+    const imgAB = await fileToAB(file);
+
+    // Generate AES-256-CBC key and IV
+    const key = await crypto.subtle.generateKey({name:'AES-CBC',length:256},true,['encrypt','decrypt']);
+    const iv  = crypto.getRandomValues(new Uint8Array(16));
+
+    // Encrypt
+    const encAB = await crypto.subtle.encrypt({name:'AES-CBC',iv},key,imgAB);
+
+    // Export key as raw bytes → base64
+    const keyRaw = await crypto.subtle.exportKey('raw',key);
+    const keyB64 = ab2b64(keyRaw);
+    const ivB64  = ab2b64(iv.buffer);
+
+    // Build .bin: [4-byte IV length big-endian][IV][encrypted]
+    const ivLen  = new Uint8Array(4);
+    new DataView(ivLen.buffer).setUint32(0,iv.length,false);
+    const binArr = new Uint8Array(4 + iv.length + encAB.byteLength);
+    binArr.set(ivLen,0);
+    binArr.set(iv,4);
+    binArr.set(new Uint8Array(encAB),4+iv.length);
+
+    basicResult={keyB64,ivB64,binArr,filename:file.name,origSize:file.size,encSize:binArr.length};
+
+    setVal('b-key-out',keyB64);
+    document.getElementById('b-iv-out').textContent=ivB64;
+    document.getElementById('b-enc-suc').textContent=`✓ Image encrypted! Download the .bin file and save your key.`;
+    document.getElementById('b-size-info').textContent=
+      `Original: ${(file.size/1024).toFixed(1)} KB  →  Encrypted: ${(binArr.length/1024).toFixed(1)} KB`;
+
+    show('b-enc-out');
+    toast('Image encrypted!');
+  }catch(e){
+    showErr('b-enc-err','Encryption failed: '+e.message);
+    toast('Encryption failed','err');
+  }finally{btn.disabled=false;spin.style.display='none';}
+}
+
+function dlBin(){
+  if(!basicResult)return;
+  const blob=new Blob([basicResult.binArr],{type:'application/octet-stream'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='encrypted_image.bin';a.click();
+  toast('.bin file downloaded!');
+}
+
+function dlKey(){
+  if(!basicResult)return;
+  const txt=`CODEC - AES Secret Key\n${'='.repeat(30)}\nAES-256 Key: ${basicResult.keyB64}\n\nKEEP THIS KEY SAFE.\nAnyone with this key + the .bin file can decrypt your image.`;
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
+  a.download='codec_aes_key.txt';a.click();
+  toast('Key downloaded!');
+}
+
+async function basicDecrypt(){
+  clearErr('b-dec-err');hide('b-dec-out');
+  const binFile=document.getElementById('b-dec-file').files[0];
+  const keyB64=getVal('b-key-in');
+
+  if(!binFile){showErr('b-dec-err','Please upload the .bin encrypted file.');return;}
+  if(!keyB64){showErr('b-dec-err','Please paste the AES secret key.');return;}
+
+  const spin=document.getElementById('b-dec-spin');
+  spin.style.display='inline-block';
+
+  try{
+    const binAB = await fileToAB(binFile);
+    const dv    = new DataView(binAB);
+    const ivLen = dv.getUint32(0,false);
+    const iv    = new Uint8Array(binAB,4,ivLen);
+    const enc   = binAB.slice(4+ivLen);
+
+    // Import key
+    const keyRaw = b642ab(keyB64);
+    const key    = await crypto.subtle.importKey('raw',keyRaw,{name:'AES-CBC'},false,['decrypt']);
+
+    // Decrypt
+    let decAB;
+    try{
+      decAB = await crypto.subtle.decrypt({name:'AES-CBC',iv},key,enc);
+    }catch(e){
+      throw new Error('Wrong AES key — the key does not match this encrypted file.');
+    }
+
+    // Show image
+    const blob=new Blob([decAB]);
+    const url=URL.createObjectURL(blob);
+    const img=document.getElementById('b-dec-img');
+    img.src=url;
+    show('b-dec-out');
+    toast('Image decrypted!');
+  }catch(e){
+    showErr('b-dec-err',e.message);
+    toast(e.message,'err');
+  }finally{spin.style.display='none';}
+}
+
+// ══════════════════════════════════════════════
+//  RSA KEY GENERATION (used by Section 2 + 3)
+// ══════════════════════════════════════════════
+const RSA_PARAMS={
+  name:'RSA-OAEP',
+  modulusLength:2048,
+  publicExponent:new Uint8Array([1,0,1]),
+  hash:'SHA-256'
+};
+const SIGN_PARAMS={
+  name:'RSA-PSS',
+  modulusLength:2048,
+  publicExponent:new Uint8Array([1,0,1]),
+  hash:'SHA-256'
+};
+
+async function genRSA(prefix){
+  try{
+    // Generate RSA-OAEP key pair (for encryption/decryption)
+    const kpEnc  = await crypto.subtle.generateKey({...RSA_PARAMS},true,['encrypt','decrypt']);
+    // Generate RSA-PSS key pair (for signing)
+    const kpSign = await crypto.subtle.generateKey({...SIGN_PARAMS},true,['sign','verify']);
+
+    // Export as PKCS8/SPKI (PEM-like base64)
+    const privEncRaw  = await crypto.subtle.exportKey('pkcs8', kpEnc.privateKey);
+    const pubEncRaw   = await crypto.subtle.exportKey('spki',  kpEnc.publicKey);
+    const privSignRaw = await crypto.subtle.exportKey('pkcs8', kpSign.privateKey);
+    const pubSignRaw  = await crypto.subtle.exportKey('spki',  kpSign.publicKey);
+
+    // Store as JSON bundle
+    const bundle = JSON.stringify({
+      encPriv:  ab2b64(privEncRaw),
+      encPub:   ab2b64(pubEncRaw),
+      signPriv: ab2b64(privSignRaw),
+      signPub:  ab2b64(pubSignRaw),
+    });
+
+    setVal(prefix+'-priv', bundle);
+    setVal(prefix+'-pub',  JSON.stringify({encPub:ab2b64(pubEncRaw),signPub:ab2b64(pubSignRaw)}));
+
+    ['dl-'+prefix+'-priv','dl-'+prefix+'-pub'].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.style.display='inline-flex';
+    });
+    toast((prefix.startsWith('c')?prefix.slice(1).toUpperCase():prefix.toUpperCase())+' keys generated!');
+  }catch(e){toast('Key generation failed: '+e.message,'err');}
+}
+
+async function importEncPriv(b64){
+  return crypto.subtle.importKey('pkcs8',b642ab(b64),{name:'RSA-OAEP',hash:'SHA-256'},false,['decrypt']);
+}
+async function importEncPub(b64){
+  return crypto.subtle.importKey('spki',b642ab(b64),{name:'RSA-OAEP',hash:'SHA-256'},false,['encrypt']);
+}
+async function importSignPriv(b64){
+  return crypto.subtle.importKey('pkcs8',b642ab(b64),{name:'RSA-PSS',hash:'SHA-256'},false,['sign']);
+}
+async function importSignPub(b64){
+  return crypto.subtle.importKey('spki',b642ab(b64),{name:'RSA-PSS',hash:'SHA-256'},false,['verify']);
+}
+
+// Parse key bundle (private) or pub bundle
+function parsePrivBundle(str){
+  try{return JSON.parse(str);}catch(e){throw new Error('Invalid private key format. Please generate keys from Step 1.');}
+}
+function parsePubBundle(str){
+  try{return JSON.parse(str);}catch(e){throw new Error('Invalid public key format. Please generate keys from Step 1.');}
+}
+
+// ══════════════════════════════════════════════
+//  SECTION 2 — SECURE
+// ══════════════════════════════════════════════
+let secPkg=null;
+
+async function secureEncrypt(){
+  clearErr('se-enc-err');hide('se-enc-out');
+  const file    = document.getElementById('s-enc-file').files[0];
+  const rpubStr = getVal('se-rpub');
+  const sprivStr= getVal('se-spriv');
+
+  if(!file){showErr('se-enc-err','Please select an image.');return;}
+  if(!rpubStr){showErr('se-enc-err','Recipient public key is missing. Paste it or use Auto-Fill from Step 1.');return;}
+  if(!sprivStr){showErr('se-enc-err','Sender private key is missing. Paste it or use Auto-Fill from Step 1.');return;}
+
+  const spin=document.getElementById('se-enc-spin');spin.style.display='inline-block';
+
+  try{
+    const imgAB = await fileToAB(file);
+
+    // Parse keys
+    const rpub   = parsePubBundle(rpubStr);
+    const spriv  = parsePrivBundle(sprivStr);
+
+    // Import keys
+    const recipEncPub  = await importEncPub(rpub.encPub);
+    const senderSignPrv= await importSignPriv(spriv.signPriv);
+
+    // 1. AES encrypt image
+    const aesKey = await crypto.subtle.generateKey({name:'AES-CBC',length:256},true,['encrypt','decrypt']);
+    const iv     = crypto.getRandomValues(new Uint8Array(16));
+    const encImg = await crypto.subtle.encrypt({name:'AES-CBC',iv},aesKey,imgAB);
+
+    // 2. RSA encrypt AES key
+    const aesRaw   = await crypto.subtle.exportKey('raw',aesKey);
+    const encAesKey= await crypto.subtle.encrypt({name:'RSA-OAEP'},recipEncPub,aesRaw);
+
+    // 3. SHA-256 hash of original image
+    const hashAB   = await crypto.subtle.digest('SHA-256',imgAB);
+    const hashHex  = ab2hex(hashAB);
+
+    // 4. Sign hash
+    const signature= await crypto.subtle.sign({name:'RSA-PSS',saltLength:32},senderSignPrv,hashAB);
+
+    secPkg={
+      encryptedImage:   ab2b64(encImg),
+      encryptedAesKey:  ab2b64(encAesKey),
+      iv:               ab2b64(iv.buffer),
+      signature:        ab2b64(signature),
+      imageHash:        hashHex,
+      filename:         file.name,
+    };
+
+    setVal('pkg-eimg', secPkg.encryptedImage);
+    setVal('pkg-ekey', secPkg.encryptedAesKey);
+    setVal('pkg-iv',   secPkg.iv);
+    setVal('pkg-sig',  secPkg.signature);
+    setVal('pkg-hash', secPkg.imageHash);
+    show('se-enc-out');
+    toast('Encrypted and signed!');
+  }catch(e){
+    showErr('se-enc-err',e.message);
+    toast(e.message,'err');
+  }finally{spin.style.display='none';}
+}
+
+async function secureDecrypt(){
+  clearErr('sd-err');hide('sd-out');
+
+  const eimg  = getVal('sd-eimg');
+  const ekey  = getVal('sd-ekey');
+  const iv    = getVal('sd-iv');
+  const sig   = getVal('sd-sig');
+  const rprivStr = getVal('sd-rpriv');
+  const spubStr  = getVal('sd-spub');
+
+  const missing = [['Encrypted Image',eimg],['Encrypted AES Key',ekey],['IV',iv],['Signature',sig],['Recipient Private Key',rprivStr],["Sender's Public Key",spubStr]].find(([,v])=>!v);
+  if(missing){showErr('sd-err',`Missing: ${missing[0]} — please fill this field.`);return;}
+
+  const spin=document.getElementById('sd-spin');spin.style.display='inline-block';
+
+  try{
+    const rpriv = parsePrivBundle(rprivStr);
+    const spub  = parsePubBundle(spubStr);
+
+    const recipEncPrv  = await importEncPriv(rpriv.encPriv);
+    const senderSignPub= await importSignPub(spub.signPub);
+
+    // 1. Decrypt AES key
+    let aesRaw;
+    try{aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},recipEncPrv,b642ab(ekey));}
+    catch(e){throw new Error('Wrong recipient private key — cannot decrypt the AES key.');}
+
+    const aesKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-CBC'},false,['decrypt']);
+
+    // 2. Decrypt image
+    let decAB;
+    try{decAB=await crypto.subtle.decrypt({name:'AES-CBC',iv:new Uint8Array(b642ab(iv))},aesKey,b642ab(eimg));}
+    catch(e){throw new Error('Decryption failed — wrong key or corrupted data.');}
+
+    // 3. Hash decrypted image
+    const hashAB  = await crypto.subtle.digest('SHA-256',decAB);
+    const hashHex = ab2hex(hashAB);
+
+    // 4. Verify signature
+    let sigValid=false;
+    try{sigValid=await crypto.subtle.verify({name:'RSA-PSS',saltLength:32},senderSignPub,b642ab(sig),hashAB);}
+    catch(e){sigValid=false;}
+
+    // Show image
+    const blob=new Blob([decAB]);
+    document.getElementById('sd-img').src=URL.createObjectURL(blob);
+
+    document.getElementById('sd-rep-sig').innerHTML = sigValid
+      ? '<span class="badge badge-ok">✓ VALID</span>'
+      : '<span class="badge badge-fail">✗ INVALID</span>';
+    document.getElementById('sd-rep-hash').textContent = hashHex;
+    document.getElementById('sd-rep-verdict').innerHTML = sigValid
+      ? '<span class="badge badge-ok">✓ AUTHENTIC — Image is original and untampered</span>'
+      : '<span class="badge badge-fail">✗ WARNING — Signature could not be verified</span>';
+
+    show('sd-out');
+    toast(sigValid?'Decrypted — signature valid!':'Decrypted — signature INVALID!', sigValid?'ok':'err');
+  }catch(e){
+    showErr('sd-err',e.message);
+    toast(e.message,'err');
+  }finally{spin.style.display='none';}
+}
+
+// ══════════════════════════════════════════════
+//  SECTION 3 — CHAIN
+// ══════════════════════════════════════════════
+const BLOCKCHAIN=[];
+let chPkg=null;
+
+async function sha256hex(ab){return ab2hex(await crypto.subtle.digest('SHA-256',ab));}
+
+async function chainEncrypt(){
+  clearErr('ch-enc-err');hide('ch-enc-out');
+
+  const file    = document.getElementById('ch-enc-file').files[0];
+  const rpubStr = getVal('ch-rpub');
+  const sprivStr= getVal('ch-spriv');
+
+  if(!file){showErr('ch-enc-err','Please select an image.');return;}
+  if(!rpubStr){showErr('ch-enc-err','Recipient public key missing.');return;}
+  if(!sprivStr){showErr('ch-enc-err','Sender private key missing.');return;}
+
+  const spin=document.getElementById('ch-enc-spin');spin.style.display='inline-block';
+
+  try{
+    const imgAB = await fileToAB(file);
+    const rpub   = parsePubBundle(rpubStr);
+    const spriv  = parsePrivBundle(sprivStr);
+
+    const recipEncPub  = await importEncPub(rpub.encPub);
+    const senderSignPrv= await importSignPriv(spriv.signPriv);
+
+    // AES encrypt
+    const aesKey = await crypto.subtle.generateKey({name:'AES-CBC',length:256},true,['encrypt','decrypt']);
+    const iv     = crypto.getRandomValues(new Uint8Array(16));
+    const encImg = await crypto.subtle.encrypt({name:'AES-CBC',iv},aesKey,imgAB);
+
+    // RSA encrypt AES key
+    const aesRaw   = await crypto.subtle.exportKey('raw',aesKey);
+    const encAesKey= await crypto.subtle.encrypt({name:'RSA-OAEP'},recipEncPub,aesRaw);
+
+    // Hash + Sign
+    const hashAB   = await crypto.subtle.digest('SHA-256',imgAB);
+    const hashHex  = ab2hex(hashAB);
+    const signature= await crypto.subtle.sign({name:'RSA-PSS',saltLength:32},senderSignPrv,hashAB);
+
+    // Register on blockchain
+    const blockId  = BLOCKCHAIN.length + 1;
+    const prevHash = BLOCKCHAIN.length>0 ? BLOCKCHAIN[BLOCKCHAIN.length-1].blockHash : '0'.repeat(64);
+    const blockDataStr = `${blockId}${hashHex}${prevHash}`;
+    const blockHashAB  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(blockDataStr));
+    const blockHash    = ab2hex(blockHashAB);
+
+    const block={blockId,imageHash:hashHex,prevHash,blockHash,filename:file.name};
+    BLOCKCHAIN.push(block);
+
+    chPkg={
+      blockId,
+      encryptedImage:  ab2b64(encImg),
+      encryptedAesKey: ab2b64(encAesKey),
+      iv:              ab2b64(iv.buffer),
+      signature:       ab2b64(signature),
+      imageHash:       hashHex,
+      blockHash,
+      prevHash,
+      filename:        file.name,
+    };
+
+    document.getElementById('ch-block-id-disp').textContent='BLOCK #'+blockId;
+    setVal('ch-img-hash',  hashHex);
+    setVal('ch-block-hash',blockHash);
+    setVal('ch-pkg-eimg',  chPkg.encryptedImage);
+    setVal('ch-pkg-ekey',  chPkg.encryptedAesKey);
+    setVal('ch-pkg-iv',    chPkg.iv);
+    setVal('ch-pkg-sig',   chPkg.signature);
+
+    show('ch-enc-out');
+    renderChain();
+    toast('Block #'+blockId+' registered on chain!');
+  }catch(e){
+    showErr('ch-enc-err',e.message);
+    toast(e.message,'err');
+  }finally{spin.style.display='none';}
+}
+
+async function chainDecrypt(){
+  clearErr('cd-err');hide('cd-out');
+
+  const blockId = parseInt(getVal('cd-bid')||'0');
+  const eimg    = getVal('cd-eimg');
+  const ekey    = getVal('cd-ekey');
+  const iv      = getVal('cd-iv');
+  const sig     = getVal('cd-sig');
+  const rprivStr= getVal('cd-rpriv');
+  const spubStr = getVal('cd-spub');
+
+  if(!blockId){showErr('cd-err','Please enter the Block ID.');return;}
+  const missing=[['Encrypted Image',eimg],['Encrypted AES Key',ekey],['IV',iv],['Signature',sig],['Recipient Private Key',rprivStr],["Sender's Public Key",spubStr]].find(([,v])=>!v);
+  if(missing){showErr('cd-err',`Missing: ${missing[0]}`);return;}
+
+  const spin=document.getElementById('cd-spin');spin.style.display='inline-block';
+
+  try{
+    const rpriv = parsePrivBundle(rprivStr);
+    const spub  = parsePubBundle(spubStr);
+
+    const recipEncPrv  = await importEncPriv(rpriv.encPriv);
+    const senderSignPub= await importSignPub(spub.signPub);
+
+    // Decrypt AES key
+    let aesRaw;
+    try{aesRaw=await crypto.subtle.decrypt({name:'RSA-OAEP'},recipEncPrv,b642ab(ekey));}
+    catch(e){throw new Error('Wrong recipient private key.');}
+
+    const aesKey=await crypto.subtle.importKey('raw',aesRaw,{name:'AES-CBC'},false,['decrypt']);
+
+    // Decrypt image
+    let decAB;
+    try{decAB=await crypto.subtle.decrypt({name:'AES-CBC',iv:new Uint8Array(b642ab(iv))},aesKey,b642ab(eimg));}
+    catch(e){throw new Error('Decryption failed — wrong key or corrupted data.');}
+
+    // Hash
+    const hashAB   = await crypto.subtle.digest('SHA-256',decAB);
+    const hashHex  = ab2hex(hashAB);
+
+    // Verify signature
+    let sigValid=false;
+    try{sigValid=await crypto.subtle.verify({name:'RSA-PSS',saltLength:32},senderSignPub,b642ab(sig),hashAB);}
+    catch(e){sigValid=false;}
+
+    // Blockchain check
+    const record     = BLOCKCHAIN[blockId-1];
+    const hashMatch  = record ? (hashHex===record.imageHash) : false;
+    const regHash    = record?.imageHash||null;
+    const blkHash    = record?.blockHash||null;
+
+    let trust;
+    if(sigValid && hashMatch) trust='full';
+    else if(sigValid || hashMatch) trust='partial';
+    else trust='none';
+
+    document.getElementById('cd-img').src=URL.createObjectURL(new Blob([decAB]));
+
+    document.getElementById('cd-rep-sig').innerHTML = sigValid
+      ?'<span class="badge badge-ok">✓ VALID</span>'
+      :'<span class="badge badge-fail">✗ INVALID</span>';
+    document.getElementById('cd-rep-hash').innerHTML = hashMatch
+      ?'<span class="badge badge-ok">✓ MATCH</span>'
+      :'<span class="badge badge-fail">✗ MISMATCH</span>';
+    document.getElementById('cd-rep-rec').innerHTML = record
+      ?'<span class="badge badge-ok">✓ FOUND ON CHAIN</span>'
+      :'<span class="badge badge-warn">⚠ NOT FOUND</span>';
+    document.getElementById('cd-rep-comp').textContent = hashHex;
+    document.getElementById('cd-rep-reg').textContent  = regHash||'—';
+
+    const trustMap={
+      full:   {lbl:'✓ TRUST: FULL',    sub:'Signature valid + Hash matches blockchain. Image is 100% authentic.'},
+      partial:{lbl:'⚠ TRUST: PARTIAL', sub:'Only one check passed. Proceed with caution.'},
+      none:   {lbl:'✗ TRUST: NONE',    sub:'Neither check passed. Image may be fake or tampered.'},
+    };
+    const t=trustMap[trust];
+    const tb=document.getElementById('cd-trust');
+    tb.className='trust-box trust-'+trust;
+    document.getElementById('cd-trust-lbl').textContent=t.lbl;
+    document.getElementById('cd-trust-sub').textContent=t.sub;
+    tb.style.display='block';
+
+    show('cd-out');
+    toast('Trust Level: '+trust.toUpperCase(), trust==='full'?'ok':'err');
+  }catch(e){
+    showErr('cd-err',e.message);
+    toast(e.message,'err');
+  }finally{spin.style.display='none';}
+}
+
+function renderChain(){
+  const el=document.getElementById('chain-exp');
+  if(!BLOCKCHAIN.length){
+    el.innerHTML='<div style="font-family:var(--mono);font-size:.72rem;color:var(--muted);">No blocks yet.</div>';
+    return;
+  }
+  el.innerHTML=BLOCKCHAIN.map(b=>`
+    <div class="block-card">
+      <div class="b-id">⬡ BLOCK #${b.blockId} — ${b.filename}</div>
+      <div>IMG HASH:   <span class="b-hash">${b.imageHash}</span></div>
+      <div>BLOCK HASH: <span class="b-hash">${b.blockHash}</span></div>
+      <div>PREV HASH:  <span class="b-prev">${b.prevHash}</span></div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+//  PACKAGE DOWNLOAD
+// ══════════════════════════════════════════════
+function dlPkg(section){
+  const pkg=section==='chain'?chPkg:secPkg;
+  if(!pkg){toast('Encrypt first','err');return;}
+  const a=document.createElement('a');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(pkg,null,2));
+  a.download='codec_'+section+'_package.json';a.click();
+  toast('Package downloaded!');
+}
+
+// ══════════════════════════════════════════════
+//  DRAG AND DROP for upload zones
+// ══════════════════════════════════════════════
+document.querySelectorAll('.uz').forEach(zone=>{
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('over');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('over'));
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.classList.remove('over');
+    const file=e.dataTransfer.files[0];
+    if(!file)return;
+    const inp=zone.querySelector('input[type=file]');
+    if(!inp)return;
+    const dt=new DataTransfer();dt.items.add(file);inp.files=dt.files;
+    inp.dispatchEvent(new Event('change'));
+  });
+});
+</script>
+</body>
+</html>
